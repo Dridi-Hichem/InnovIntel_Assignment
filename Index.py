@@ -98,11 +98,11 @@ def get_table_data(driver):
     #    loadMore.click()
     
     # get a list of medecine IDs elements and a list of medecine links elements
-    
+    table_published = driver.find_element(By.CLASS_NAME, "tabs__content").find_element(By.TAG_NAME, "table")
     data_dict = {
-        "IDs": [ID_element.text.strip() for ID_element in driver.find_elements(By.CLASS_NAME, "medicine-advice-table__id-row")],
-        "Names": [medecine_element.text.strip() for medecine_element in driver.find_elements(By.CLASS_NAME, "medicine-advice-table__link")],
-        "Links": [link_element.find_element(By.TAG_NAME, 'a').get_attribute("href") for link_element in driver.find_elements(By.CLASS_NAME, "medicine-advice-table__link-row")]
+        "IDs": [ID_element.text.strip() for ID_element in table_published.find_elements(By.CLASS_NAME, "medicine-advice-table__id-row")],
+        "Names": [medecine_element.text.strip() for medecine_element in table_published.find_elements(By.CLASS_NAME, "medicine-advice-table__link")],
+        "Links": [link_element.find_element(By.TAG_NAME, 'a').get_attribute("href") for link_element in table_published.find_elements(By.CLASS_NAME, "medicine-advice-table__link-row")]
         }
     
     return data_dict
@@ -114,6 +114,27 @@ def get_file_link(driver, file_id, file_name, file_url):
     file_link = section_element.find_elements(By.TAG_NAME, "a")[0].get_attribute("href")
     return {"ID": file_id, "Name": file_name, "File link": file_link}
     
+def get_downloading_path(path):
+    downloads_path = str(os.path.join(Path.home(), "Downloads", "Medicines advice"))
+    
+    if path == None:
+        print("Downloading the file in -> ", downloads_path)
+    
+    elif not os.path.exists(path):
+        print(f"The entered path: {path} is not valid!")
+        print("Downloading the file in -> ", downloads_path)
+        
+    elif os.path.isdir(str(path, "Medicines advice")):
+        print(". ".join(["The current path contains a folder called 'Medicines advice'",
+                         "Please rename or remove it from the given path or enter another one."]))
+        pass
+    else:
+        downloads_path = os.path.join(path, "Medicines advice")
+        os.mkdir(path)
+        
+    return downloads_path
+
+
 def fetch_all(limit, path = None):
     data_dict = get_table_data()
     
@@ -122,24 +143,9 @@ def fetch_all(limit, path = None):
                         "The website may not be found or its desing has been changed!"]))
         pass
     
-    if path == None:
-        downloads_path = str(os.path.join(Path.home(), "Downloads", "Medicines advice"))
-        print("Downloading the file in ", str(os.path.join(downloads_path, "Downloads")))
-    
-    elif not os.path.exists(path):
-        downloads_path = str(os.path.join(Path.home(), "Downloads", "Medicines advice"))
-        print(f"The entered path: {path} is not valid!")
-        print("Downloading the file in ", str(os.path.join(downloads_path, "Downloads")))
-        
-    elif os.path.isdir(str(path, "Medicines advice")):
-        print(". ".join(["The current path contains a folder called 'Medicines advice'",
-                         ]))
+    downloads_path = get_downloading_path(path)
+    pass
         
 
 def fetch(by_id = None, by_name = None):
     pass
-
-res = get_table_data()
-print(res['IDs'])
-print(res['Names'])
-print(res['Links'])
