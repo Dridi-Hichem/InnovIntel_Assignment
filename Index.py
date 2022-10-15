@@ -18,13 +18,27 @@ from selenium.common.exceptions import SessionNotCreatedException
 from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait as wait
+import time
 import os
 from pathlib import Path
-import time
 
 url = 'https://www.scottishmedicines.org.uk/medicines-advice/'
 
 def get_driver(func):
+    '''
+    Returns a webdriver instance from selenium
+
+    Parameters
+    ----------
+    func : function
+        a function that returns a selenium driver object for a browser.
+
+    Returns
+    -------
+    selenium.webdriver or None
+        None if a the browser is not installed.
+
+    '''
     @functools.wraps(func)
     def wrapper_get_driver():
         try:
@@ -36,6 +50,14 @@ def get_driver(func):
 
 @get_driver
 def get_ChromeDriver():
+    '''
+    Returns a selenium driver object for Chrome
+
+    Returns
+    -------
+    driver : selenium.webdriver.chrome.webdriver.WebDriver
+
+    '''
     # create selenium driver object for Chrome
     opts = webdriver.ChromeOptions()
     opts.headless = True # prevent the browser from running in the background
@@ -46,6 +68,14 @@ def get_ChromeDriver():
 
 @get_driver
 def get_FirefoxDriver():
+    '''
+    Returns a selenium driver object for Firefox
+
+    Returns
+    -------
+    driver : selenium.webdriver.firefox.webdriver.WebDriver
+
+    '''
     opts = webdriver.FirefoxOptions()
     opts.headless = True
     
@@ -55,6 +85,14 @@ def get_FirefoxDriver():
 
 @get_driver
 def get_EdgeDriver():
+    '''
+    Returns a selenium driver object for Edge
+
+    Returns
+    -------
+    driver : selenium.webdriver.Edge.webdriver.WebDriver
+
+    '''
     opts = webdriver.EdgeOptions()
     opts.headless = True
     
@@ -63,8 +101,23 @@ def get_EdgeDriver():
     return driver
 
 def parse_url(func):
+    '''
+    Function to parse a webpage using selenium webdriver.
+
+    Parameters
+    ----------
+    func : function
+        The function with instructions for scraping a given website .
+
+    Returns
+    -------
+    dictionnary or None
+        Dictionnary of data retrieved or None if the scrapping method failed.
+
+    '''
     @functools.wraps(func)
     def wrapper_parse_url(*args, **kwargs):
+        # instantiate the webdriver object
         for getDriver in [get_ChromeDriver(), get_FirefoxDriver(), get_EdgeDriver()]:
             driver = getDriver
             if driver != None: break
@@ -75,6 +128,7 @@ def parse_url(func):
         try:
             data_dict = func(driver, *args, **kwargs)
         except NoSuchElementException:
+            # returns None if the scraping failed
             data_dict = None
             
         return data_dict     
@@ -82,57 +136,135 @@ def parse_url(func):
 
 @parse_url
 def get_table_data(driver):
-    driver.get(url)
+    '''
+    A function to parse the 'Medecines advice' webpage to retrieve medication IDs,\
+    names and links to the medication webpage from the 'Published' table.
+
+    Parameters
+    ----------
+    driver : selenium webdriver object, Optional
+        generated automatically.
+
+    Returns
+    -------
+    data_dict : dict
+        A JSON like dictionnary with lists of medication IDs, names and links.
+
+    '''
+    driver.get(url) # send the GET request
     assert driver.title == "Medicines advice", "Unable to retrieve web page, try later."
     
-    # create "load more" button object
-    #loadMore = driver.find_element(By.ID, "btn-more-0")
-    # or 
-    #loadMore = wait(driver, 60).until(EC.element_to_be_clickable((By.XPATH, "//span[text()='Load more']")))
+    # close cookies popup
+    wait(driver, 10).until(EC.element_to_be_clickable((By.ID, "ccc-dismiss-button"))).click()
     
-    # get the number of pages
-    #totalPages = driver.find_element(By.ID, "max-page-0").get_attribute("value")
+    # get the number of pages i.e. the number of times to click on the button load more
+    totalPages = driver.find_element(By.ID, "max-page-0").get_attribute("value")
     
     # click the button "load more" to load all the rows in the table
-    #for i in range(totalPages):
-    #    loadMore.click()
+    for i in range(totalPages):
+        wait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, '//*[@id="btn-more-0"]'))).click()
+        time.sleep(3)
     
-    # get a list of medecine IDs elements and a list of medecine links elements
+    # get IDs, names and links to medicine webpage in a JSON like dictionnary
+    # get the table Published
     table_published = driver.find_element(By.CLASS_NAME, "tabs__content").find_element(By.TAG_NAME, "table")
+    
     data_dict = {
-        "IDs": [ID_element.text.strip() for ID_element in table_published.find_elements(By.CLASS_NAME, "medicine-advice-table__id-row")],
-        "Names": [medecine_element.text.strip() for medecine_element in table_published.find_elements(By.CLASS_NAME, "medicine-advice-table__link")],
-        "Links": [link_element.find_element(By.TAG_NAME, 'a').get_attribute("href") for link_element in table_published.find_elements(By.CLASS_NAME, "medicine-advice-table__link-row")]
+        "IDs": [ID_element.text.strip() for ID_element in table_published.\
+                find_elements(By.CLASS_NAME, "medicine-advice-table__id-row")],
+        "Names": [medecine_element.find_element(By.CLASS_NAME, "medicine-advice-table__link").text.strip() 
+                  for medecine_element in table_published.\
+                      find_elements(By.CLASS_NAME, "medicine-row")],
+        "Links": [link_element.find_element(By.TAG_NAME, 'a').get_attribute("href") \
+                  for link_element in table_published.find_elements(By.CLASS_NAME, "medicine-advice-table__link-row")]
         }
     
     return data_dict
      
 @parse_url
 def get_file_link(driver, file_id, file_name, file_url):
-    driver.get(file_url)
+    '''
+    A function to parse the url of a given drug to retrieve the link \
+    to the detailed advice pdf file.
+
+    Parameters
+    ----------
+    driver : selenium webdriver object, Optional
+        generated automatically.
+    file_id : str
+        The medicine SMC ID.
+    file_name : str
+        The medicine name.
+    file_url : str
+        The link to the detailed advice pdf file.
+
+    Returns
+    -------
+    dict
+        A dictionnary with the medication ID, name and pdf file link.
+
+    '''
+    
+    driver.get(file_url) # send the GET request
+    # get the link the detailed advice pdf file
     section_element = driver.find_element(By.XPATH, "/html/body/div/section")
     file_link = section_element.find_elements(By.TAG_NAME, "a")[0].get_attribute("href")
-    return {"ID": file_id, "Name": file_name, "File link": file_link}
     
-def get_downloading_path(path):
-    downloads_path = str(os.path.join(Path.home(), "Downloads", "Medicines advice"))
+    return {"ID": file_id, "Name": file_name, "File link": file_link}
+
+
+def folder_path(path, name):
+    '''
+    Returns the path to the existed/created folder in the given path.
+
+    Parameters
+    ----------
+    path : str
+        The path to the check the existance of the folder or created it.
+    name : str
+        the folder name.
+
+    Returns
+    -------
+    final_path : str
+        The final path to the folder.
+
+    '''
+    final_path = str(os.path.join(path, name))
+    if not os.path.exists(final_path): os.mkdir(final_path)
+    return final_path
+    
+def get_downloading_path(path = None):
+    '''
+    Create a folder called 'Medicines advice' in the specified path otherwise in \
+    the 'Downloads' folder or create 'Downloads' then 'Medicines advice' if 'Downloads' does not exist
+
+    Parameters
+    ----------
+    path : str
+        A path to save downloaded files.
+
+    Returns
+    -------
+    medicines_folder_path : str
+        The path to the created folder 'Medicines advice'.
+
+    '''
+    
+    downloads_path = folder_path(Path.home(), "Downloads")
+    medicines_folder_path = folder_path(downloads_path, "Medicines advice")
     
     if path == None:
-        print("Downloading the file in -> ", downloads_path)
+        print("Downloading the file in -> ", medicines_folder_path)
     
-    elif not os.path.exists(path):
+    elif not os.path.exists(path): # if the given path is wrong
         print(f"The entered path: {path} is not valid!")
-        print("Downloading the file in -> ", downloads_path)
+        print("Downloading the file in -> ", medicines_folder_path)
         
-    elif os.path.isdir(str(path, "Medicines advice")):
-        print(". ".join(["The current path contains a folder called 'Medicines advice'",
-                         "Please rename or remove it from the given path or enter another one."]))
-        pass
     else:
-        downloads_path = os.path.join(path, "Medicines advice")
-        os.mkdir(path)
+        medicines_folder_path = folder_path(downloads_path, "Medicines advice")
         
-    return downloads_path
+    return medicines_folder_path
 
 
 def fetch_all(limit, path = None):
