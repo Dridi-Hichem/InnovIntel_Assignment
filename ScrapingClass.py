@@ -22,6 +22,21 @@ class MedAdvScraper():
         
     def __repr__(self):
         return "MedicinesAdviceScraper"
+    @property
+    def IDs_list(self):
+        return self.__IDs_list
+    
+    @IDs_list.setter
+    def IDs_list(self, IDs_list):
+        self.__IDs_list = IDs_list
+        
+    @property
+    def names_list(self):
+        return self.__names_list
+    
+    @names_list.setter
+    def limit(self, names_list):
+        self.__names_list = names_list
         
     @property
     def limit(self):
