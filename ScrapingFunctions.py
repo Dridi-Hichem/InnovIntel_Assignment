@@ -49,7 +49,7 @@ def get_WebDriver(func):
             driver = func()
         except SessionNotCreatedException as e:
             print('Fail! Code: {}, {}'.format(type(e).__name__, str(e)))
-        except SessionNotCreatedException as e:
+        except Exception as e:
             print('Fail! Code: {}, {}'.format(type(e).__name__, str(e)))
         
         return driver
@@ -197,7 +197,8 @@ def get_table_data(driver, limit = None):
     rows_count = 20 # the table has 20 rows initially
     for i in range(int(totalPages) - 1):
         # stop clicking the button 'Load more' if the desired number of rows is attained
-        if (limit != None) & (rows_count >= limit): break
+        if (limit != None):
+            if (rows_count >= limit): break
         wait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, '//*[@id="btn-more-0"]'))).click()
         time.sleep(3)
         # increase the rows count by 20 after each click
@@ -386,8 +387,10 @@ def dwn_process(data_dict, limit = None, path = None):
     
     unretrieved_list = [] # for unretrieved files
     counter = 0 # count the number of files succefully downloaded
+    
     print('Downloading files...')
     for ID, name, link in zip(IDs_list, names_list, links_list):
+        
         # get the link to the detailed advice pdf file
         med_data = get_file_link(file_id = ID, file_name = name, file_url = link)
         
