@@ -74,6 +74,7 @@ class MedAdvScraper():
 
         """
         if IDs_list == None: IDs_list = self.__IDs_list
+        if path == None: path = self.__path
         
         # ensure that IDs_list is a of type list
         if not isinstance(IDs_list, list):
@@ -124,10 +125,11 @@ class MedAdvScraper():
 
         """
         if names_list == None: names_list = self.__names_list
+        if path == None: path = self.__path
         
         # ensure that names_list is a of type list
         if not isinstance(names_list, list):
-            raise TypeError(f"A list of namess is required, got a {type(names_list)} instead!")
+            raise TypeError(f"A list of names is required, got a {type(names_list)} instead!")
             sys.exit()
             
         # get the data from table Published
