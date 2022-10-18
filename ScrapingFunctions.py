@@ -27,7 +27,7 @@ import re
 
 url = 'https://www.scottishmedicines.org.uk/medicines-advice/'
 
-def get_driver(func):
+def get_WebDriver(func):
     '''
     Returns a webdriver instance from selenium
 
@@ -44,14 +44,18 @@ def get_driver(func):
     '''
     @functools.wraps(func)
     def wrapper_get_driver():
+        driver = None
         try:
             driver = func()
-        except SessionNotCreatedException:
-            driver = None
+        except SessionNotCreatedException as e:
+            print('Fail! Code: {}, {}'.format(type(e).__name__, str(e)))
+        except SessionNotCreatedException as e:
+            print('Fail! Code: {}, {}'.format(type(e).__name__, str(e)))
+        
         return driver
     return wrapper_get_driver
 
-@get_driver
+@get_WebDriver
 def get_ChromeDriver():
     '''
     Returns a selenium driver object for Chrome
@@ -61,15 +65,18 @@ def get_ChromeDriver():
     driver : selenium.webdriver.chrome.webdriver.WebDriver
 
     '''
+    print("Trying to install a driver for Chrome. Please wait...")
+    
     # create selenium driver object for Chrome
     opts = webdriver.ChromeOptions()
     opts.headless = True # prevent the browser from running in the background
     
     service = ChromeService(ChromeDriverManager().install()) # Selenium requires a driver to interface with the chosen browser.
     driver = webdriver.Chrome(service = service, options=opts)
+    
     return driver
 
-@get_driver
+@get_WebDriver
 def get_FirefoxDriver():
     '''
     Returns a selenium driver object for Firefox
@@ -79,6 +86,8 @@ def get_FirefoxDriver():
     driver : selenium.webdriver.firefox.webdriver.WebDriver
 
     '''
+    print("Trying to install a driver for Firefox. Please wait...")
+    
     opts = webdriver.FirefoxOptions()
     opts.headless = True
     
@@ -86,7 +95,7 @@ def get_FirefoxDriver():
     driver = webdriver.Firefox(service = service, options=opts)
     return driver
 
-@get_driver
+@get_WebDriver
 def get_EdgeDriver():
     '''
     Returns a selenium driver object for Edge
@@ -96,6 +105,8 @@ def get_EdgeDriver():
     driver : selenium.webdriver.Edge.webdriver.WebDriver
 
     '''
+    print("Trying to install a driver for Edge. Please wait...")
+    
     opts = webdriver.EdgeOptions()
     opts.headless = True
     
@@ -164,13 +175,15 @@ def get_table_data(driver, limit = None):
         A JSON like dictionnary with lists of medication IDs, names and links.
 
     '''
+    print('Collecting data from ' + url)
+    
     driver.get(url) # send the GET request
     
     # exit if the page for "Medicines advice" is not rtrieved
     try:
         assert driver.title == "Medicines advice"
     except AssertionError as e:
-        error_msg = "Unable to rertieve "+ url + ". Try later!"
+        error_msg = "Unable to rertieve data from "+ url + ". Try later!"
         print('Fail! Code: {}, Message: {}'.format(type(e).__name__, error_msg))
         sys.exit()
         
@@ -290,15 +303,16 @@ def get_downloading_path(path = None):
     medicines_folder_path = folder_path(downloads_path, "Medicines advice")
     
     if path == None:
-        print("Downloading files in -> ", medicines_folder_path)
+        print("Download path is set to ->", medicines_folder_path)
     
     elif not os.path.exists(path): # if the given path is wrong
         print(f"The entered path: {path} is not valid!")
-        print("Downloading files in -> ", medicines_folder_path)
+        print("Download path is set to -> ", medicines_folder_path)
         
     else:
         medicines_folder_path = folder_path(path, "Medicines advice")
-        
+     
+    time.sleep(2)
     return medicines_folder_path
 
 def dwn_pdf_file(ID, name, pdf_link, dwn_path):
@@ -340,6 +354,58 @@ def dwn_pdf_file(ID, name, pdf_link, dwn_path):
         return None
     except:
         return (ID, name, "Incorrect link for pdf file")
+    
+def dwn_process(data_dict, limit = None, path = None):
+    """
+    Download detailed advice pdf files from drug web pages in a default path if not provided.
+    Files not retrieved and number of successful downloads will be returned.
+
+    Parameters
+    ----------
+    data_dict : dict
+        A dictionnary of medicines IDs, names and web pages links.
+    limit : int, optional
+        the number of files to download. The default is None.
+    path : str, optional
+        The path for downloading directory. If None a default path will be used.
+
+    Returns
+    -------
+    unretrieved_list : list
+        Contains ID, name and short message tuples for undownloaded files.
+    counter : int
+        Number of successful downloads.
+    downloads_path : str
+        Location for downloaded files.
+
+    """
+    # set the directory for downloading
+    downloads_path = get_downloading_path(path)
+    # get the medicines data
+    IDs_list, names_list, links_list = data_dict['IDs'], data_dict['Names'], data_dict['Links']
+    
+    unretrieved_list = [] # for unretrieved files
+    counter = 0 # count the number of files succefully downloaded
+    print('Downloading files...')
+    for ID, name, link in zip(IDs_list, names_list, links_list):
+        # get the link to the detailed advice pdf file
+        med_data = get_file_link(file_id = ID, file_name = name, file_url = link)
+        
+        # if there is no link to the pdf file
+        if med_data == None:
+            unretrieved_list.append((ID, name, "Inaccessible or incorrect web page"))
+            continue
+            
+        pdf_link = med_data['File link'] # the pdf link
+        # download the file
+        dwn_result = dwn_pdf_file(ID, name, pdf_link, downloads_path)
+        # store the ID and name for undowloaded file
+        if dwn_result != None: unretrieved_list.append(dwn_result)
+           
+        counter += 1
+        if counter == limit: break # if the limit is reached
+    
+    return (unretrieved_list, counter, downloads_path)
 
 def fetch_call(func):
     @functools.wraps(func)
@@ -369,60 +435,3 @@ def fetch_call(func):
                 for ID, name, message in unretrieved_list: print(ID, name, message)
     
     return wrapper_fetch_call
-
-        
-@fetch_call
-def fetch_all(limit = None, path = None):
-    """
-    
-
-    Parameters
-    ----------
-    limit : int, optional
-        The number of the first n files to download. The default is None.
-    path : str, optional
-        The path for downloading directory. If None a default path will be used.
-
-    Returns
-    -------
-    fetch_result : Tuple or None
-        A tuple with the list of unretrieved files details, the downloaded files count\
-             and the path for the results directory. None if parsing method failed.
-
-    """
-    # get the data from table Published
-    data_dict = get_table_data(limit = limit)
-    
-    # if the scraping method failed
-    if data_dict == None: fetch_result = None
-    else:
-        # set the directory for downloading
-        downloads_path = get_downloading_path(path)
-        # get the medicines data
-        IDs_list, names_list, links_list = data_dict['IDs'], data_dict['Names'], data_dict['Links']
-        
-        unretrieved_list = [] # for unretrieved files
-        counter = 0 # count the number of files downloaded
-        for ID, name, link in zip(IDs_list, names_list, links_list):
-            # get the link to the detailed advice pdf file
-            med_data = get_file_link(file_id = ID, file_name = name, file_url = link)
-            
-            # if there is no link to the pdf file
-            if med_data == None:
-                unretrieved_list.append((ID, name, "Inaccessible or incorrect web page"))
-                continue
-                
-            pdf_link = med_data['File link'] # the pdf link
-            # download the file
-            dwn_result = dwn_pdf_file(ID, name, pdf_link, downloads_path)
-            # store the ID and name for undowloaded file
-            if dwn_result != None: unretrieved_list.append(dwn_result)
-               
-            counter += 1
-            if counter == limit: break # if the limit is reached
-        
-        fetch_result = (unretrieved_list, counter, downloads_path)
-            
-    return fetch_result
-    
-
