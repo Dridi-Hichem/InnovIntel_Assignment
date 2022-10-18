@@ -5,6 +5,7 @@ Created on Mon Oct 17 18:30:38 2022
 @author: Hichem Dridi
 """
 import ScrapingFunctions as sf
+import sys
 
 class MedAdvScraper():
     """
@@ -13,7 +14,9 @@ class MedAdvScraper():
     The webpage link is then parsed to download the detailed advice pdf file.
     """
     
-    def __init__(self, limit = None, path = None):
+    def __init__(self, IDs_list = None, names_list = None, limit = None, path = None):
+        self.__IDs_list = IDs_list
+        self.__names_list = names_list
         self.__limit = limit
         self.__path = path
         
@@ -35,6 +38,106 @@ class MedAdvScraper():
     @path.setter
     def path(self, path):
         self.__path = path
+        
+    @sf.fetch_call
+    def fetch_byIDs(self, IDs_list = None, path = None):
+        """
+        Download The detailed advice pdf files for the medicine Identifiers provided.
+
+        Parameters
+        ----------
+        IDs_list : list
+            A list of medicines SMC identifiers .
+        path : str, optional
+            The path for downloading directory. If None a default path will be used.
+
+        Returns
+        -------
+        fetch_result : Tuple or None
+            A tuple with the list of unretrieved files details, the downloaded files count\
+                 and the path for the results directory. None if parsing method failed.
+
+        """
+        if IDs_list == None: IDs_list = self.__IDs_list
+        
+        # ensure that IDs_list is a of type list
+        if not isinstance(IDs_list, list):
+            raise TypeError(f"A list of IDs is required, got a {type(IDs_list)} instead!")
+            sys.exit()
+            
+        # get the data from table Published
+        data_dict = sf.get_table_data()
+        
+        # if the scraping method failed
+        if data_dict == None: fetch_result = None
+        else: 
+            # limit the data dictionary to only medicines whose identifiers are provided in IDs_list
+            new_data_dict = {
+                "IDs": [ID for ID in data_dict['IDs'] if ID in IDs_list],
+                "Names": [name for ID, name in zip(data_dict['IDs'], data_dict['Names']) if ID in IDs_list],
+                "Links": [link for ID, link in zip(data_dict['IDs'], data_dict['Links']) if ID in IDs_list]
+                }
+            
+            # flag bad IDs
+            bad_IDs = list(set(IDs_list) - set(new_data_dict['IDs']))
+            if bad_IDs:
+                print("Bad or not found IDs:")
+                print("\n".join(bad_IDs))
+                
+                
+            fetch_result = sf.dwn_process(new_data_dict, path)
+                
+        return fetch_result
+    
+    @sf.fetch_call
+    def fetch_byNames(self, names_list = None, path = None):
+        """
+        Download The detailed advice pdf files for the medicine Identifiers provided.
+
+        Parameters
+        ----------
+        names_list : list
+            A list of medicines names .
+        path : str, optional
+            The path for downloading directory. If None a default path will be used.
+
+        Returns
+        -------
+        fetch_result : Tuple or None
+            A tuple with the list of unretrieved files details, the downloaded files count\
+                 and the path for the results directory. None if parsing method failed.
+
+        """
+        if names_list == None: names_list = self.__names_list
+        
+        # ensure that names_list is a of type list
+        if not isinstance(names_list, list):
+            raise TypeError(f"A list of namess is required, got a {type(names_list)} instead!")
+            sys.exit()
+            
+        # get the data from table Published
+        data_dict = sf.get_table_data()
+        
+        # if the scraping method failed
+        if data_dict == None: fetch_result = None
+        else: 
+            # limit the data dictionary to only medicines whose names are provided in names_list
+            new_data_dict = {
+                "IDs": [ID for ID, name in zip(data_dict['IDs'], data_dict['Names']) if name in names_list],
+                "Names": [name for name in data_dict['Names'] if name in names_list],
+                "Links": [link for link, name in zip(data_dict['Links'], data_dict['Names']) if name in names_list]
+                }
+            
+            # flag bad names
+            bad_names = list(set(names_list) - set(new_data_dict['Names']))
+            if bad_names:
+                print("wrong or missing names:")
+                print("\n".join(bad_names))
+                
+                
+            fetch_result = sf.dwn_process(new_data_dict, path)
+                
+        return fetch_result
         
     @sf.fetch_call
     def fetch_all(self, limit = None, path = None):
